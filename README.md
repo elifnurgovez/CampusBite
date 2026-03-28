@@ -1,6 +1,6 @@
 # 🥪 CampusBite: Sürdürülebilir Kampüs Yaşamı
 ## 🔗 Canlı Demo
-🚀 **[CampusBite'ı Hemen Dene!](BURAYA_VERCEL_LINKINI_YAPISTIR)**
+🚀 **[CampusBite'ı Hemen Dene!](https://campus-bite-ashy.vercel.app/)**
 
 **CampusBite**, kampüs içindeki gıda israfını azaltmak ve öğrencilere sağlıklı, ekonomik ve çevreci alternatifler sunmak için tasarlanmış bir **Akıllı Gıda Kurtarma Platformu**dur. 
 
