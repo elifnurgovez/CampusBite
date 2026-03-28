@@ -29,6 +29,15 @@ type ProductRow = {
 
 type PastelKind = "vegan" | "meat" | "sweet" | "bakery" | "default";
 
+type ManualSustainabilityPanel = {
+  impact_score: number;
+  text: string;
+  water_liters: number;
+  co2_grams: number;
+  green_score: number;
+  daily_tip: string;
+};
+
 type LeafParticle = {
   id: number;
   left: number;
@@ -441,6 +450,60 @@ function LeafIcon({ className }: { className?: string }) {
   );
 }
 
+function DropletIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        d="M12 3.5c-3 4.2-6 8.1-6 12.2a6 6 0 1012 0c0-4.1-3-7.9-6-12.2z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TreeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+    >
+      <path
+        d="M12 22V14M8 14h8M12 14c-2-3-4-5.5-4-8a4 4 0 118 0c0 2.5-2 5-4 8z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function formatWaterLiters(n: number): string {
+  return `${n.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} L`;
+}
+
+function formatCo2Grams(g: number): string {
+  if (g >= 1000) {
+    return `${(g / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} kg`;
+  }
+  return `${Math.round(g).toLocaleString("tr-TR")} g`;
+}
+
 export default function Home() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [orderCount, setOrderCount] = useState(0);
@@ -456,6 +519,21 @@ export default function Home() {
   const [geminiImpactScores, setGeminiImpactScores] = useState<
     Record<string, number>
   >({});
+  const [manualProductName, setManualProductName] = useState("");
+  const [manualPanel, setManualPanel] = useState<ManualSustainabilityPanel | null>(
+    null
+  );
+  const [manualAnalyzing, setManualAnalyzing] = useState(false);
+  const [manualError, setManualError] = useState("");
+
+  /** Ürün listesi referansı yerine içerik imzası — useEffect bağımlılık dizisini sabit uzunlukta tutar. */
+  const productsFetchKey = useMemo(
+    () =>
+      products
+        .map((p) => `${p.id}\u001f${p.name}\u001f${p.category}`)
+        .join("\u001e"),
+    [products]
+  );
 
   const orderCountN = normalizeOrderCount(orderCount);
 
@@ -599,10 +677,11 @@ export default function Home() {
   }, [fetchOrderCount, fetchProducts]);
 
   useEffect(() => {
-    if (isBootLoading || products.length === 0) return;
     let cancelled = false;
 
-    const loadComments = async () => {
+    void (async () => {
+      if (isBootLoading || products.length === 0) return;
+
       await Promise.all(
         products.map(async (item) => {
           try {
@@ -650,13 +729,103 @@ export default function Home() {
           }
         })
       );
-    };
+    })();
 
-    void loadComments();
     return () => {
       cancelled = true;
     };
-  }, [isBootLoading, products]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- products içeriği productsFetchKey ile izleniyor
+  }, [isBootLoading, productsFetchKey]);
+
+  const handleManualAnalyze = async () => {
+    const name = manualProductName.trim();
+    if (!name) {
+      setManualError("Lütfen bir ürün adı yazın.");
+      return;
+    }
+    setManualError("");
+    setManualAnalyzing(true);
+    try {
+      const kind = getPastelKind("Özel", name);
+      const categoryLabel =
+        kind === "vegan"
+          ? "Vegan"
+          : kind === "meat"
+            ? "Et & sandviç"
+            : kind === "sweet"
+              ? "Tatlı"
+              : kind === "bakery"
+                ? "Fırın"
+                : "Genel";
+      const productId = `manual-${crypto.randomUUID()}`;
+      const url = `/api/gemini-comment?id=${encodeURIComponent(productId)}&t=${Date.now()}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: productId,
+          name,
+          category: categoryLabel,
+          variationHint: `manual-${name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        }),
+        cache: "no-store",
+      });
+      const data = (await res.json()) as {
+        text?: string;
+        comment?: string;
+        impact_score?: number;
+        water_liters?: number;
+        co2_grams?: number;
+        green_score?: number;
+        daily_tip?: string;
+      };
+      const raw =
+        typeof data.text === "string" && data.text.trim()
+          ? data.text.trim()
+          : typeof data.comment === "string"
+            ? data.comment.trim()
+            : "";
+      const impact =
+        typeof data.impact_score === "number"
+          ? Math.min(100, Math.max(0, Math.round(data.impact_score)))
+          : 50;
+      const green =
+        typeof data.green_score === "number"
+          ? Math.min(100, Math.max(0, Math.round(data.green_score)))
+          : impact;
+      const water =
+        typeof data.water_liters === "number" && Number.isFinite(data.water_liters)
+          ? Math.max(0, data.water_liters)
+          : 2.1;
+      const co2 =
+        typeof data.co2_grams === "number" && Number.isFinite(data.co2_grams)
+          ? Math.max(0, data.co2_grams)
+          : 220;
+      const tip =
+        typeof data.daily_tip === "string" && data.daily_tip.trim()
+          ? data.daily_tip.trim()
+          : "Bugün mevsim ürünlerini tercih etmek küçük ama etkili bir adımdır.";
+      setManualPanel({
+        impact_score: impact,
+        text: raw || "Sonuç alınamadı.",
+        water_liters: water,
+        co2_grams: co2,
+        green_score: green,
+        daily_tip: tip,
+      });
+    } catch (e) {
+      console.error("Manuel analiz:", e);
+      setManualError("Analiz sırasında bir hata oluştu. Tekrar dene.");
+    } finally {
+      setManualAnalyzing(false);
+    }
+  };
+
+  const handleManualReset = () => {
+    setManualProductName("");
+    setManualPanel(null);
+    setManualError("");
+  };
 
   const handleOrder = async (product: ProductRow, e?: MouseEvent) => {
     if (!isSupabaseConfigured) return;
@@ -839,6 +1008,176 @@ export default function Home() {
             {loadError}
           </div>
         )}
+
+        <section
+          aria-labelledby="quick-analysis-heading"
+          className="overflow-hidden rounded-[32px] border-2 border-emerald-200/70 bg-gradient-to-br from-[#f4fbf7] via-white to-sky-50/60 p-6 shadow-lg ring-1 ring-emerald-100/80 md:p-8"
+        >
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600/90">
+                CampusBite
+              </p>
+              <h2
+                id="quick-analysis-heading"
+                className="mt-1 text-lg font-bold text-[#1a2e35] md:text-xl"
+              >
+                Hızlı sürdürülebilirlik analizi
+              </h2>
+              <p className="mt-1 max-w-xl text-sm font-semibold text-[#1a2e35]/75">
+                Ürün adını yaz; AI lezzet + çevre etkisini tek cümlede özetlesin.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-stretch sm:gap-3">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Ürün adı</span>
+              <input
+                type="text"
+                value={manualProductName}
+                onChange={(e) => setManualProductName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !manualAnalyzing) void handleManualAnalyze();
+                }}
+                placeholder="Ürün adı yazın (örn: Karışık Sandviç)"
+                disabled={manualAnalyzing}
+                className="w-full rounded-2xl border-2 border-emerald-200/80 bg-white/95 px-4 py-3.5 text-[15px] font-semibold text-[#1a2e35] shadow-inner shadow-emerald-100/40 outline-none ring-emerald-300/30 placeholder:text-[#1a2e35]/35 focus:border-emerald-400/90 focus:ring-4 focus:ring-emerald-200/50 disabled:opacity-60"
+                autoComplete="off"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleManualAnalyze()}
+              disabled={manualAnalyzing}
+              className="shrink-0 rounded-2xl border-2 border-emerald-400/50 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500 px-8 py-3.5 text-sm font-bold text-white shadow-md transition-all duration-300 hover:border-emerald-500 hover:from-emerald-500 hover:via-teal-500 hover:to-cyan-600 hover:shadow-lg hover:brightness-[1.02] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+            >
+              {manualAnalyzing ? "Analiz ediliyor…" : "Analiz Et 🥪"}
+            </button>
+          </div>
+
+          {manualError && (
+            <p
+              className="mt-4 rounded-xl border border-amber-200/90 bg-amber-50/90 px-4 py-2 text-sm font-bold text-[#1a2e35]"
+              role="alert"
+            >
+              {manualError}
+            </p>
+          )}
+
+          {manualPanel && (
+            <div className="mt-6 space-y-3">
+              <div
+                className="overflow-hidden rounded-[28px] border-2 border-emerald-200/50 bg-gradient-to-b from-white via-[#f4fbf7] to-sky-50/30 p-5 shadow-md md:p-8"
+                role="region"
+                aria-label="Sürdürülebilirlik paneli"
+              >
+                <p className="text-center text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-600">
+                  Sürdürülebilirlik Paneli
+                </p>
+
+                <div className="mt-6 flex justify-center">
+                  <div
+                    className="rounded-full p-[6px] shadow-md"
+                    style={{
+                      background: `conic-gradient(from -90deg, rgb(52 211 153) ${(manualPanel.impact_score / 100) * 360}deg, rgb(204 251 241) 0deg)`,
+                    }}
+                  >
+                    <div className="flex h-[min(11rem,40vw)] w-[min(11rem,40vw)] min-h-[9rem] min-w-[9rem] flex-col items-center justify-center rounded-full bg-[#f8fdfb] ring-1 ring-emerald-100/80 sm:h-44 sm:w-44">
+                      <span className="text-5xl font-extrabold tabular-nums leading-none text-emerald-700 sm:text-6xl">
+                        {manualPanel.impact_score}
+                      </span>
+                      <span className="mt-1 text-xs font-bold text-[#1a2e35]/45">
+                        /100
+                      </span>
+                      <span className="mt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600/90">
+                        Etki puanı
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+                  <div className="flex flex-col rounded-2xl border border-sky-200/80 bg-sky-50/90 p-4 shadow-sm ring-1 ring-sky-100/60">
+                    <div className="flex items-center gap-2">
+                      <DropletIcon className="shrink-0 text-sky-500" />
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#1a2e35]/55">
+                        Su tasarrufu
+                      </p>
+                    </div>
+                    <p className="mt-3 text-xl font-extrabold tabular-nums text-sky-800">
+                      ≈ {formatWaterLiters(manualPanel.water_liters)}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold leading-snug text-[#1a2e35]/55">
+                      Tahmini su ayak izi (litre)
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col rounded-2xl border border-emerald-200/80 bg-emerald-50/90 p-4 shadow-sm ring-1 ring-emerald-100/60">
+                    <div className="flex items-center gap-2">
+                      <TreeIcon className="shrink-0 text-emerald-600" />
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#1a2e35]/55">
+                        CO₂ engelleme
+                      </p>
+                    </div>
+                    <p className="mt-3 text-xl font-extrabold tabular-nums text-emerald-900">
+                      ≈ {formatCo2Grams(manualPanel.co2_grams)}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold leading-snug text-[#1a2e35]/55">
+                      Tahmini CO₂ eşdeğeri
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col rounded-2xl border border-violet-200/75 bg-violet-50/90 p-4 shadow-sm ring-1 ring-violet-100/50">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#1a2e35]/55">
+                      Yeşil puan
+                    </p>
+                    <div className="mt-3 flex items-baseline gap-1">
+                      <span className="text-2xl font-extrabold tabular-nums text-violet-800">
+                        {manualPanel.green_score}
+                      </span>
+                      <span className="text-sm font-bold text-[#1a2e35]/45">
+                        /100
+                      </span>
+                    </div>
+                    <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-violet-200/70">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-violet-400 to-fuchsia-400 transition-[width] duration-500 ease-out"
+                        style={{ width: `${manualPanel.green_score}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 space-y-6 border-t border-emerald-200/40 pt-8">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-600">
+                      Gurme yorumu
+                    </p>
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-[#1a2e35] md:text-[15px]">
+                      {manualPanel.text}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-200/60 bg-amber-50/80 px-4 py-3.5 shadow-inner">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-700/90">
+                      Günün tavsiyesi
+                    </p>
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-[#1a2e35]">
+                      {manualPanel.daily_tip}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleManualReset}
+                className="text-xs font-bold text-[#1a2e35]/55 underline-offset-2 transition hover:text-emerald-700 hover:underline"
+              >
+                Yeni Analiz
+              </button>
+            </div>
+          )}
+        </section>
 
         <section aria-labelledby="today-heading">
           <h2

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createSandwichComment } from "@/lib/gemini";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 /** Next.js bu route yanıtını önbelleğe almasın. */
 export const dynamic = "force-dynamic";
@@ -9,6 +10,17 @@ export const revalidate = 0;
 const noStore = {
   "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
   Pragma: "no-cache",
+} as const;
+
+const fallbackBody = {
+  comment: "Lezzetiyle dikkat ceken guzel bir kampus secenegi.",
+  text: "Lezzetiyle dikkat ceken guzel bir kampus secenegi.",
+  impact_score: 50,
+  water_liters: 2.1,
+  co2_grams: 220,
+  green_score: 50,
+  daily_tip:
+    "Bugun mevsim urunlerini tercih etmek hem lezzet hem cevre icin iyi bir adim.",
 } as const;
 
 export async function POST(request: Request) {
@@ -31,29 +43,41 @@ export async function POST(request: Request) {
         : `${name}-${Date.now()}`;
 
     if (!name) {
-      const fallback = "Lezzetiyle dikkat ceken guzel bir kampus secenegi.";
-      return NextResponse.json(
-        { comment: fallback, text: fallback, impact_score: 50 },
-        { status: 200, headers: noStore }
-      );
+      return NextResponse.json(fallbackBody, { status: 200, headers: noStore });
     }
 
-    const { text, impact_score } = await createSandwichComment(
+    const analysis = await createSandwichComment(
       name,
       category,
       variationHint,
       productId
     );
+
+    if (isSupabaseConfigured) {
+      const { error: scanErr } = await supabase.from("scans").insert({
+        product_name: name,
+        impact_score: analysis.impact_score,
+        product_id: productId || null,
+      });
+      if (scanErr) {
+        console.error("scans insert:", scanErr.message);
+      }
+    }
+
     return NextResponse.json(
-      { comment: text, text, impact_score },
+      {
+        comment: analysis.text,
+        text: analysis.text,
+        impact_score: analysis.impact_score,
+        water_liters: analysis.water_liters,
+        co2_grams: analysis.co2_grams,
+        green_score: analysis.green_score,
+        daily_tip: analysis.daily_tip,
+      },
       { status: 200, headers: noStore }
     );
   } catch (error) {
     console.error("Gemini route hatasi:", error);
-    const fallback = "Lezzetiyle dikkat ceken guzel bir kampus secenegi.";
-    return NextResponse.json(
-      { comment: fallback, text: fallback, impact_score: 50 },
-      { status: 200, headers: noStore }
-    );
+    return NextResponse.json(fallbackBody, { status: 200, headers: noStore });
   }
 }
