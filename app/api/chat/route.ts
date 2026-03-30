@@ -10,8 +10,8 @@ const noStore = {
   Pragma: "no-cache",
 } as const;
 
-/** Generative Language API */
-const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1" };
+/** v1beta: systemInstruction alanı v1’de tanınmıyor; EcoChat system prompt için gerekli */
+const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1beta" };
 
 const ECOCHAT_MODEL = "gemini-3-flash";
 
