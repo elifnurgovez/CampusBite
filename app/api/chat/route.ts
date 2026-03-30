@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { RequestOptions } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,15 @@ const noStore = {
 
 const geminiApiKey =
   process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+
+/** Generative Language API — chat/generate için v1beta (SDK ile uyumlu, yaygın kullanım) */
+const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1beta" };
+
+/** Önce güncel takma ad, 404 / model yok ise sürüm sabitli yedek */
+const CHAT_MODEL_CANDIDATES = [
+  "gemini-1.5-flash-latest",
+  "gemini-1.5-flash-002",
+] as const;
 
 /** EcoChat / Eco-Assistant — Gemini systemInstruction */
 const SYSTEM_PROMPT = `Sen CampusBite uygulamasının 'Eco-Assistant'ısın. Üniversite öğrencilerine hitap ediyorsun.
@@ -77,32 +87,50 @@ export async function POST(request: Request) {
     }
 
     const client = new GoogleGenerativeAI(geminiApiKey.trim());
-    const model = client.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction: SYSTEM_PROMPT,
-    });
 
-    const chat = model.startChat({
-      history,
-      generationConfig: {
-        temperature: 0.85,
-        maxOutputTokens: 1024,
-      },
-    });
+    let reply = "";
+    let lastModelError: unknown;
 
-    const result = await chat.sendMessage(lastUser);
-    const reply = result.response.text().trim();
-    if (!reply) {
-      return NextResponse.json(
-        {
-          reply:
-            "Kısa bir gecikme oldu; tekrar yazarsan sevinirim! Kampüste bugün de sürdürülebilir bir seçim yapabilirsin. 🌿",
-        },
-        { status: 200, headers: noStore }
-      );
+    for (const modelName of CHAT_MODEL_CANDIDATES) {
+      try {
+        const model = client.getGenerativeModel(
+          {
+            model: modelName,
+            systemInstruction: SYSTEM_PROMPT,
+          },
+          GEMINI_REQUEST_OPTIONS
+        );
+
+        const chat = model.startChat({
+          history,
+          generationConfig: {
+            temperature: 0.85,
+            maxOutputTokens: 1024,
+          },
+        });
+
+        const result = await chat.sendMessage(lastUser);
+        reply = result.response.text().trim();
+        if (reply) {
+          return NextResponse.json({ reply }, { status: 200, headers: noStore });
+        }
+      } catch (e) {
+        lastModelError = e;
+        console.warn(`EcoChat: model "${modelName}" başarısız:`, e);
+      }
     }
 
-    return NextResponse.json({ reply }, { status: 200, headers: noStore });
+    if (lastModelError) {
+      throw lastModelError;
+    }
+
+    return NextResponse.json(
+      {
+        reply:
+          "Kısa bir gecikme oldu; tekrar yazarsan sevinirim! Kampüste bugün de sürdürülebilir bir seçim yapabilirsin. 🌿",
+      },
+      { status: 200, headers: noStore }
+    );
   } catch (error) {
     console.error("EcoChat API:", error);
     const errMsg =
