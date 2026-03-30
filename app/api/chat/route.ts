@@ -10,8 +10,8 @@ const noStore = {
   Pragma: "no-cache",
 } as const;
 
-/** Generative Language API — her model denemesinde aynı uç (RequestOptions) */
-const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1beta" };
+/** Generative Language API — gemini-3.x ile uyum için v1 */
+const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1" };
 
 /**
  * GOOGLE_AI_API_KEY veya NEXT_PUBLIC_GEMINI_API_KEY: en az biri dolu olmalı.
@@ -25,10 +25,10 @@ function resolveGeminiApiKey(): string | null {
   return null;
 }
 
-/** 1) gemini-1.5-flash-latest → hata veya boş yanıtta 2) gemini-1.5-flash-002 */
-const CHAT_MODEL_CANDIDATES = [
-  "gemini-1.5-flash-latest",
-  "gemini-1.5-flash-002",
+/** Sırayla dene: önce 3.1 Flash, hata veya boş yanıtta 2.5 Flash */
+const modelsToTry = [
+  "gemini-3.1-flash",
+  "gemini-2.5-flash",
 ] as const;
 
 /** EcoChat / Eco-Assistant — Gemini systemInstruction */
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     let reply = "";
     let lastModelError: unknown;
 
-    for (const modelName of CHAT_MODEL_CANDIDATES) {
+    for (const modelName of modelsToTry) {
       try {
         const model = client.getGenerativeModel(
           {
