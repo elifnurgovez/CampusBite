@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
     const client = new GoogleGenerativeAI(geminiApiKey.trim());
     const model = client.getGenerativeModel({
-      model: "gemini-1.5-flash-latest",
+      model: "gemini-1.5-flash",
       systemInstruction: SYSTEM_PROMPT,
     });
 
@@ -105,10 +105,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply }, { status: 200, headers: noStore });
   } catch (error) {
     console.error("EcoChat API:", error);
+    const errMsg =
+      error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       {
-        reply:
-          "Bir şeyler ters gitti. Tekrar dene; bu arada buzdolabındaki artıkları tek kapta değerlendirmek harika bir fikir olabilir! 🌿",
+        reply: `Bir şeyler ters gitti. Tekrar dene; bu arada buzdolabındaki artıkları tek kapta değerlendirmek harika bir fikir olabilir! 🌿 [Hata: ${errMsg}]`,
       },
       { status: 200, headers: noStore }
     );
