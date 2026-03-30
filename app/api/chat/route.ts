@@ -10,8 +10,10 @@ const noStore = {
   Pragma: "no-cache",
 } as const;
 
-/** Generative Language API — gemini-3.x ile uyum için v1 */
+/** Generative Language API */
 const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1" };
+
+const ECOCHAT_MODEL = "gemini-3-flash";
 
 /**
  * GOOGLE_AI_API_KEY veya NEXT_PUBLIC_GEMINI_API_KEY: en az biri dolu olmalı.
@@ -24,12 +26,6 @@ function resolveGeminiApiKey(): string | null {
   if (fromPublic) return fromPublic;
   return null;
 }
-
-/** Sırayla dene: önce 3.1 Flash, hata veya boş yanıtta 2.5 Flash */
-const modelsToTry = [
-  "gemini-3.1-flash",
-  "gemini-2.5-flash",
-] as const;
 
 /** EcoChat / Eco-Assistant — Gemini systemInstruction */
 const SYSTEM_PROMPT = `Sen CampusBite uygulamasının 'Eco-Assistant'ısın. Üniversite öğrencilerine hitap ediyorsun.
@@ -98,49 +94,35 @@ export async function POST(request: Request) {
 
     const client = new GoogleGenerativeAI(apiKey);
 
-    let reply = "";
-    let lastModelError: unknown;
-
-    for (const modelName of modelsToTry) {
-      try {
-        const model = client.getGenerativeModel(
-          {
-            model: modelName,
-            systemInstruction: SYSTEM_PROMPT,
-          },
-          GEMINI_REQUEST_OPTIONS
-        );
-
-        const chat = model.startChat({
-          history,
-          generationConfig: {
-            temperature: 0.85,
-            maxOutputTokens: 1024,
-          },
-        });
-
-        const result = await chat.sendMessage(lastUser);
-        reply = result.response.text().trim();
-        if (reply) {
-          return NextResponse.json({ reply }, { status: 200, headers: noStore });
-        }
-      } catch (e) {
-        lastModelError = e;
-        console.warn(`EcoChat: model "${modelName}" başarısız:`, e);
-      }
-    }
-
-    if (lastModelError) {
-      throw lastModelError;
-    }
-
-    return NextResponse.json(
+    const model = client.getGenerativeModel(
       {
-        reply:
-          "Kısa bir gecikme oldu; tekrar yazarsan sevinirim! Kampüste bugün de sürdürülebilir bir seçim yapabilirsin. 🌿",
+        model: ECOCHAT_MODEL,
+        systemInstruction: SYSTEM_PROMPT,
       },
-      { status: 200, headers: noStore }
+      GEMINI_REQUEST_OPTIONS
     );
+
+    const chat = model.startChat({
+      history,
+      generationConfig: {
+        temperature: 0.85,
+        maxOutputTokens: 1024,
+      },
+    });
+
+    const result = await chat.sendMessage(lastUser);
+    const reply = result.response.text().trim();
+    if (!reply) {
+      return NextResponse.json(
+        {
+          reply:
+            "Kısa bir gecikme oldu; tekrar yazarsan sevinirim! Kampüste bugün de sürdürülebilir bir seçim yapabilirsin. 🌿",
+        },
+        { status: 200, headers: noStore }
+      );
+    }
+
+    return NextResponse.json({ reply }, { status: 200, headers: noStore });
   } catch (error) {
     console.error("EcoChat API:", error);
     const errMsg =
