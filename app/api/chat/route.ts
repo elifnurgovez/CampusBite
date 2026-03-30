@@ -10,13 +10,22 @@ const noStore = {
   Pragma: "no-cache",
 } as const;
 
-const geminiApiKey =
-  process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
-
-/** Generative Language API — chat/generate için v1beta (SDK ile uyumlu, yaygın kullanım) */
+/** Generative Language API — her model denemesinde aynı uç (RequestOptions) */
 const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1beta" };
 
-/** Önce güncel takma ad, 404 / model yok ise sürüm sabitli yedek */
+/**
+ * GOOGLE_AI_API_KEY veya NEXT_PUBLIC_GEMINI_API_KEY: en az biri dolu olmalı.
+ * Öncelik: sunucu anahtarı (GOOGLE_AI_API_KEY), yoksa public.
+ */
+function resolveGeminiApiKey(): string | null {
+  const fromGoogle = process.env.GOOGLE_AI_API_KEY?.trim();
+  if (fromGoogle) return fromGoogle;
+  const fromPublic = process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim();
+  if (fromPublic) return fromPublic;
+  return null;
+}
+
+/** 1) gemini-1.5-flash-latest → hata veya boş yanıtta 2) gemini-1.5-flash-002 */
 const CHAT_MODEL_CANDIDATES = [
   "gemini-1.5-flash-latest",
   "gemini-1.5-flash-002",
@@ -76,17 +85,18 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!geminiApiKey?.trim()) {
+    const apiKey = resolveGeminiApiKey();
+    if (!apiKey) {
       return NextResponse.json(
         {
           reply:
-            "Şu an Eco-Assistant bağlantısı kurulamadı. Biraz sonra tekrar dene — bu arada mutfakta israfı azaltmak için küçük porsiyonlar ve kapaklı tencere kullanmak iyi bir başlangıç! 🌿",
+            "Şu an Eco-Assistant bağlantısı kurulamadı: GOOGLE_AI_API_KEY veya NEXT_PUBLIC_GEMINI_API_KEY tanımlı değil. Biraz sonra tekrar dene — bu arada mutfakta israfı azaltmak için küçük porsiyonlar ve kapaklı tencere kullanmak iyi bir başlangıç! 🌿",
         },
         { status: 200, headers: noStore }
       );
     }
 
-    const client = new GoogleGenerativeAI(geminiApiKey.trim());
+    const client = new GoogleGenerativeAI(apiKey);
 
     let reply = "";
     let lastModelError: unknown;
