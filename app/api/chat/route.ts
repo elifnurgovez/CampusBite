@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { RequestOptions } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -9,11 +8,6 @@ const noStore = {
   "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
   Pragma: "no-cache",
 } as const;
-
-/** v1beta: systemInstruction alanı v1’de tanınmıyor; EcoChat system prompt için gerekli */
-const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1beta" };
-
-const ECOCHAT_MODEL = "gemini-3-flash";
 
 /**
  * GOOGLE_AI_API_KEY veya NEXT_PUBLIC_GEMINI_API_KEY: en az biri dolu olmalı.
@@ -27,7 +21,7 @@ function resolveGeminiApiKey(): string | null {
   return null;
 }
 
-/** EcoChat / Eco-Assistant — Gemini systemInstruction */
+/** Eco-Assistant davranışı — kullanıcı mesajının başına eklenir (API systemInstruction kullanılmaz) */
 const SYSTEM_PROMPT = `Sen CampusBite uygulamasının 'Eco-Assistant'ısın. Üniversite öğrencilerine hitap ediyorsun.
 
 Kullanıcı artan yemekleri sorarsa (Örn: 'Kalan makarnayla ne yapılır?'), onlara yaratıcı, hızlı ve israfsız tarifler ver.
@@ -94,13 +88,9 @@ export async function POST(request: Request) {
 
     const client = new GoogleGenerativeAI(apiKey);
 
-    const model = client.getGenerativeModel(
-      {
-        model: ECOCHAT_MODEL,
-        systemInstruction: SYSTEM_PROMPT,
-      },
-      GEMINI_REQUEST_OPTIONS
-    );
+    const model = client.getGenerativeModel({
+      model: "gemini-1.5-flash",
+    });
 
     const chat = model.startChat({
       history,
@@ -110,7 +100,8 @@ export async function POST(request: Request) {
       },
     });
 
-    const result = await chat.sendMessage(lastUser);
+    const messageWithSystem = `${SYSTEM_PROMPT}\n\n${lastUser}`;
+    const result = await chat.sendMessage(messageWithSystem);
     const reply = result.response.text().trim();
     if (!reply) {
       return NextResponse.json(
