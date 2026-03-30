@@ -1,4 +1,7 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  GoogleGenerativeAI,
+  GoogleGenerativeAIFetchError,
+} from "@google/generative-ai";
 import type { RequestOptions } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 
@@ -12,13 +15,15 @@ const noStore = {
 
 const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1" };
 
+/** systemInstruction kullanılmaz; metin kullanıcı mesajının başına eklenir */
 const SYSTEM_PROMPT = `Sen CampusBite uygulamasının 'Eco-Assistant'ısın. Üniversite öğrencilerine hitap ediyorsun.
 Artan yemekler için yaratıcı tarifler ver ve sürdürülebilirlik tavsiyeleri sun.
 Cevapların kısa, samimi ve motive edici olsun. Emoji kullanmayı unutma! 🌿`;
 
+const MODEL_ID = "gemini-1.5-flash";
+
 type IncomingMsg = { role?: string; text?: string };
 
-/** Son kullanıcı mesajını al (geçmiş yok; sadece bu metin modele gider) */
 function getLastUserMessage(messages: IncomingMsg[]): string {
   const users = messages.filter(
     (m) =>
@@ -38,15 +43,35 @@ function resolveGeminiApiKey(): string | null {
   return null;
 }
 
+function friendlyFetchError(status: number | undefined, message: string): string {
+  if (status === 429) {
+    return `İstek limiti (429): Çok sık mesaj gönderildi veya kotanız doldu. Bir süre bekleyip tekrar dene. Ayrıntı: ${message}`;
+  }
+  if (status === 404) {
+    return `Model bulunamadı (404): ${MODEL_ID} bu anahtar veya bölge için uygun olmayabilir. Ayrıntı: ${message}`;
+  }
+  if (status === 400) {
+    return `Geçersiz istek (400): Mesaj çok uzun veya parametre uyumsuz olabilir. Ayrıntı: ${message}`;
+  }
+  return `Bağlantı hatası — ayrıntı: ${message}`;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
     const lastUserMsg = getLastUserMessage(rawMessages);
 
-    if (!lastUserMsg || lastUserMsg.length > 4000) {
+    if (!lastUserMsg) {
       return NextResponse.json(
-        { error: "Geçerli bir mesaj gerekli." },
+        { error: "Geçerli bir kullanıcı mesajı gerekli." },
+        { status: 400, headers: noStore }
+      );
+    }
+
+    if (lastUserMsg.length > 32000) {
+      return NextResponse.json(
+        { error: "Mesaj çok uzun (maks. yaklaşık 32.000 karakter)." },
         { status: 400, headers: noStore }
       );
     }
@@ -56,7 +81,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           reply:
-            "Eco-Assistant şu an kullanılamıyor: GOOGLE_AI_API_KEY veya NEXT_PUBLIC_GEMINI_API_KEY tanımlı değil. 🌿",
+            "Eco-Assistant kullanılamıyor: GOOGLE_AI_API_KEY veya NEXT_PUBLIC_GEMINI_API_KEY tanımlı değil. 🌿",
         },
         { status: 200, headers: noStore }
       );
@@ -66,9 +91,7 @@ export async function POST(request: Request) {
 
     const client = new GoogleGenerativeAI(apiKey);
     const model = client.getGenerativeModel(
-      {
-        model: "gemini-2.0-flash",
-      },
+      { model: MODEL_ID },
       GEMINI_REQUEST_OPTIONS
     );
 
@@ -83,9 +106,7 @@ export async function POST(request: Request) {
     const reply = result.response.text().trim();
     if (!reply) {
       return NextResponse.json(
-        {
-          reply: "Şu an yanıt oluşturulamadı; tekrar dene. 🌿",
-        },
+        { reply: "Şu an yanıt oluşturulamadı; tekrar dene. 🌿" },
         { status: 200, headers: noStore }
       );
     }
@@ -93,12 +114,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply }, { status: 200, headers: noStore });
   } catch (error) {
     console.error("EcoChat API:", error);
-    const errMsg =
-      error instanceof Error ? error.message : String(error);
+
+    if (error instanceof GoogleGenerativeAIFetchError) {
+      const msg = error.message || String(error);
+      return NextResponse.json(
+        {
+          reply: friendlyFetchError(error.status, msg),
+        },
+        { status: 200, headers: noStore }
+      );
+    }
+
+    const errMsg = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      {
-        reply: `Bağlantı hatası — ayrıntı: ${errMsg}`,
-      },
+      { reply: `Hata: ${errMsg}` },
       { status: 200, headers: noStore }
     );
   }
