@@ -9,6 +9,10 @@ import {
   type MouseEvent,
 } from "react";
 
+import {
+  estimateCo2FromImpact,
+  estimateWaterFromImpact,
+} from "@/lib/gemini";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 type ProductRow = {
@@ -33,7 +37,7 @@ type ManualSustainabilityPanel = {
   impact_score: number;
   text: string;
   water_liters: number;
-  co2_grams: number;
+  co2_avoided: number;
   green_score: number;
   daily_tip: string;
 };
@@ -775,6 +779,8 @@ export default function Home() {
         comment?: string;
         impact_score?: number;
         water_liters?: number;
+        water_saving?: number;
+        co2_avoided?: number;
         co2_grams?: number;
         green_score?: number;
         daily_tip?: string;
@@ -796,11 +802,17 @@ export default function Home() {
       const water =
         typeof data.water_liters === "number" && Number.isFinite(data.water_liters)
           ? Math.max(0, data.water_liters)
-          : 2.1;
+          : typeof data.water_saving === "number" &&
+              Number.isFinite(data.water_saving)
+            ? Math.max(0, data.water_saving)
+            : estimateWaterFromImpact(impact);
       const co2 =
         typeof data.co2_grams === "number" && Number.isFinite(data.co2_grams)
           ? Math.max(0, data.co2_grams)
-          : 220;
+          : typeof data.co2_avoided === "number" &&
+              Number.isFinite(data.co2_avoided)
+            ? Math.max(0, data.co2_avoided)
+            : estimateCo2FromImpact(impact);
       const tip =
         typeof data.daily_tip === "string" && data.daily_tip.trim()
           ? data.daily_tip.trim()
@@ -809,7 +821,7 @@ export default function Home() {
         impact_score: impact,
         text: raw || "Sonuç alınamadı.",
         water_liters: water,
-        co2_grams: co2,
+        co2_avoided: co2,
         green_score: green,
         daily_tip: tip,
       });
@@ -1121,7 +1133,7 @@ export default function Home() {
                       </p>
                     </div>
                     <p className="mt-3 text-xl font-extrabold tabular-nums text-emerald-900">
-                      ≈ {formatCo2Grams(manualPanel.co2_grams)}
+                      ≈ {formatCo2Grams(manualPanel.co2_avoided)}
                     </p>
                     <p className="mt-1 text-[11px] font-semibold leading-snug text-[#1a2e35]/55">
                       Tahmini CO₂ eşdeğeri

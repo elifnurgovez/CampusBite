@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { createSandwichComment } from "@/lib/gemini";
+import {
+  createSandwichComment,
+  DEFAULT_FALLBACK_ANALYSIS,
+  type SustainabilityAnalysis,
+} from "@/lib/gemini";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 /** Next.js bu route yanıtını önbelleğe almasın. */
@@ -12,16 +16,19 @@ const noStore = {
   Pragma: "no-cache",
 } as const;
 
-const fallbackBody = {
-  comment: "Lezzetiyle dikkat ceken guzel bir kampus secenegi.",
-  text: "Lezzetiyle dikkat ceken guzel bir kampus secenegi.",
-  impact_score: 50,
-  water_liters: 2.1,
-  co2_grams: 220,
-  green_score: 50,
-  daily_tip:
-    "Bugun mevsim urunlerini tercih etmek hem lezzet hem cevre icin iyi bir adim.",
-} as const;
+function analysisToJsonBody(a: SustainabilityAnalysis) {
+  return {
+    comment: a.text,
+    text: a.text,
+    impact_score: a.impact_score,
+    water_liters: a.water_liters,
+    co2_avoided: a.co2_avoided,
+    green_score: a.green_score,
+    daily_tip: a.daily_tip,
+  };
+}
+
+const fallbackBody = analysisToJsonBody(DEFAULT_FALLBACK_ANALYSIS);
 
 export async function POST(request: Request) {
   try {
@@ -58,24 +65,18 @@ export async function POST(request: Request) {
         product_name: name,
         impact_score: analysis.impact_score,
         product_id: productId || null,
+        water_liters: analysis.water_liters,
+        co2_avoided: analysis.co2_avoided,
       });
       if (scanErr) {
         console.error("scans insert:", scanErr.message);
       }
     }
 
-    return NextResponse.json(
-      {
-        comment: analysis.text,
-        text: analysis.text,
-        impact_score: analysis.impact_score,
-        water_liters: analysis.water_liters,
-        co2_grams: analysis.co2_grams,
-        green_score: analysis.green_score,
-        daily_tip: analysis.daily_tip,
-      },
-      { status: 200, headers: noStore }
-    );
+    return NextResponse.json(analysisToJsonBody(analysis), {
+      status: 200,
+      headers: noStore,
+    });
   } catch (error) {
     console.error("Gemini route hatasi:", error);
     return NextResponse.json(fallbackBody, { status: 200, headers: noStore });
