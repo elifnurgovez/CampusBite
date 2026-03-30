@@ -6,14 +6,8 @@
 ## ## Çözüm
 CampusBite, kampüs içi işletmelerin gün sonu fazla ürünlerini (surplus food) indirimli fiyatlarla öğrencilerle buluşturan sürdürülebilir bir dairesel ekonomi platformudur. Uygulama, **Google Gemini API** entegrasyonu sayesinde her satın alımın doğaya olan katkısını (Su Tasarrufu ve CO2 Engelleme) anlık olarak analiz eder. Böylece işletmeler israfı önlerken, öğrenciler bütçe dostu gıdaya erişir ve kampüs genelinde çevresel farkındalık oluşturulur.
 
-## ## Özellikler
-- **Akıllı Market:** Gün sonu indirimli ürünlerin listelenmesi ve takibi.
-- **Eco-Assistant:** AI destekli sürdürülebilir yaşam önerileri ve dertleşme alanı.
-- **Sürdürülebilirlik Analizi:** Her ürünün su ve karbon ayak izi üzerindeki etkisinin hesaplanması.
-- **Dinamik Dashboard:** Toplam tasarruf ve "Yeşil Puan" verilerinin görselleştirilmesi.
-
 ## ## Canlı Demo
-**Yayın Linki:** [https://campus-bite.vercel.app](https://campus-bite.vercel.app)
+**Yayın Linki:** [https://campus-bite-ashy.vercel.app/]
 **Demo Videosu:** [Buraya video linkini ekleyebilirsin]
 
 ## ## Kullanılan Teknolojiler
@@ -24,6 +18,6 @@ CampusBite, kampüs içi işletmelerin gün sonu fazla ürünlerini (surplus foo
 - **Dağıtım:** Vercel
 
 ## ## Nasıl Çalıştırılır?
-1. **Depoyu Klonlayın:** `git clone https://github.com/kullanici-adiniz/campus-bite.git`
-2. **Paketleri Yükleyin:** `npm install`
-3. **Başlatın:** `npm run dev`
+1. **Repository'i clone'layın:** `git clone <repo-url>`
+2. **Gerekli paketleri yükleyin:** `npm install`
+3. **Çalıştırın:** `npm run dev`
