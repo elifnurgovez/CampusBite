@@ -10,7 +10,7 @@ const noStore = {
   Pragma: "no-cache",
 } as const;
 
-const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1beta" };
+const GEMINI_REQUEST_OPTIONS: RequestOptions = { apiVersion: "v1" };
 
 const SYSTEM_PROMPT = `Sen CampusBite uygulamasının 'Eco-Assistant'ısın. Üniversite öğrencilerine hitap ediyorsun.
 Artan yemekler için yaratıcı tarifler ver ve sürdürülebilirlik tavsiyeleri sun.
@@ -24,7 +24,7 @@ type GeminiHistoryTurn = {
 };
 
 /**
- * assistant → model; geçmiş Gemini'ye gönderilmeden önce dizi mutlaka 'user' ile başlar.
+ * assistant → model; history dizisi mutlaka 'user' ile başlar — değilse baştan shift ile silinir.
  */
 function buildHistoryAndLastUser(messages: IncomingMsg[]): {
   history: GeminiHistoryTurn[];
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     const client = new GoogleGenerativeAI(apiKey);
     const model = client.getGenerativeModel(
       {
-        model: "gemini-3-flash",
+        model: "gemini-2.0-flash",
         systemInstruction: SYSTEM_PROMPT,
       },
       GEMINI_REQUEST_OPTIONS
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       {
-        reply: `Bir hata oluştu: ${errMsg}`,
+        reply: `Bağlantı hatası — ayrıntı: ${errMsg}`,
       },
       { status: 200, headers: noStore }
     );
