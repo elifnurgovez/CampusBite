@@ -18,45 +18,16 @@ Cevapların kısa, samimi ve motive edici olsun. Emoji kullanmayı unutma! 🌿`
 
 type IncomingMsg = { role?: string; text?: string };
 
-type GeminiHistoryTurn = {
-  role: "user" | "model";
-  parts: { text: string }[];
-};
-
-/**
- * assistant → model; history dizisi mutlaka 'user' ile başlar — değilse baştan shift ile silinir.
- */
-function buildHistoryAndLastUser(messages: IncomingMsg[]): {
-  history: GeminiHistoryTurn[];
-  lastUser: string;
-} {
-  const list = messages.filter(
+/** Son kullanıcı mesajını al (geçmiş yok; sadece bu metin modele gider) */
+function getLastUserMessage(messages: IncomingMsg[]): string {
+  const users = messages.filter(
     (m) =>
-      (m.role === "user" || m.role === "assistant") &&
+      m.role === "user" &&
       typeof m.text === "string" &&
       m.text.trim().length > 0
-  ) as { role: "user" | "assistant"; text: string }[];
-
-  let i = 0;
-  while (i < list.length && list[i].role !== "user") i++;
-  const rest = list.slice(i);
-  if (rest.length === 0 || rest[rest.length - 1].role !== "user") {
-    return { history: [], lastUser: "" };
-  }
-
-  const lastUser = rest[rest.length - 1].text.trim();
-  const before = rest.slice(0, -1);
-
-  const history: GeminiHistoryTurn[] = before.map((m) => ({
-    role: m.role === "user" ? "user" : "model",
-    parts: [{ text: m.text.trim() }],
-  }));
-
-  while (history.length > 0 && history[0].role !== "user") {
-    history.shift();
-  }
-
-  return { history, lastUser };
+  );
+  if (users.length === 0) return "";
+  return users[users.length - 1].text!.trim();
 }
 
 function resolveGeminiApiKey(): string | null {
@@ -71,9 +42,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
-    const { history, lastUser } = buildHistoryAndLastUser(rawMessages);
+    const lastUserMsg = getLastUserMessage(rawMessages);
 
-    if (!lastUser || lastUser.length > 4000) {
+    if (!lastUserMsg || lastUserMsg.length > 4000) {
       return NextResponse.json(
         { error: "Geçerli bir mesaj gerekli." },
         { status: 400, headers: noStore }
@@ -91,30 +62,29 @@ export async function POST(request: Request) {
       );
     }
 
+    const fullPrompt = `${SYSTEM_PROMPT}\n\nKullanıcı mesajı: ${lastUserMsg}`;
+
     const client = new GoogleGenerativeAI(apiKey);
     const model = client.getGenerativeModel(
       {
         model: "gemini-2.0-flash",
-        systemInstruction: SYSTEM_PROMPT,
       },
       GEMINI_REQUEST_OPTIONS
     );
 
-    const chat = model.startChat({
-      history,
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
       generationConfig: {
         temperature: 0.85,
         maxOutputTokens: 1024,
       },
     });
 
-    const result = await chat.sendMessage(lastUser);
     const reply = result.response.text().trim();
     if (!reply) {
       return NextResponse.json(
         {
-          reply:
-            "Şu an yanıt oluşturulamadı; tekrar dene. 🌿",
+          reply: "Şu an yanıt oluşturulamadı; tekrar dene. 🌿",
         },
         { status: 200, headers: noStore }
       );
