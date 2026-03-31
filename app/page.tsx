@@ -1064,7 +1064,7 @@ export default function Home() {
               disabled={manualAnalyzing}
               className="shrink-0 rounded-2xl border-2 border-emerald-400/50 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500 px-8 py-3.5 text-sm font-bold text-white shadow-md transition-all duration-300 hover:border-emerald-500 hover:from-emerald-500 hover:via-teal-500 hover:to-cyan-600 hover:shadow-lg hover:brightness-[1.02] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
             >
-              {manualAnalyzing ? "Analiz ediliyor…" : "Analiz Et 🥪"}
+              {manualAnalyzing ? "Analiz ediliyor..." : "Analiz Et 🥪"}
             </button>
           </div>
 

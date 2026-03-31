@@ -181,7 +181,7 @@ export function EcoChat() {
               disabled={sending}
               className="shrink-0 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-50"
             >
-              {sending ? "…" : "Gönder"}
+              {sending ? "Analiz ediliyor..." : "Mesaj Gönder"}
             </button>
           </div>
         </footer>
