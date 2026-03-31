@@ -35,17 +35,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply });
   } catch (error: any) {
     console.error("Gerçek Hata Detayı:", error);
-    
-    // Eğer hata gerçekten 429 (Limit) ise senin mesajını göstersin
-    if (error?.status === 429 || error?.message?.includes("429")) {
-        return NextResponse.json({
-            reply: "Şu an CampusBite mutfağı biraz yoğun (Limit hatası). Lütfen 30 saniye sonra tekrar dene! 🌿",
-          });
-    }
-
-    // Başka bir hataysa bize ne olduğunu söylesin ki körü körüne limit sanmayalım
-    return NextResponse.json({
-      reply: `Sistemsel bir hata oluştu: ${error.message}`,
-    });
+    return NextResponse.json({ reply: "GERÇEK HATA: " + error.message });
   }
 }
