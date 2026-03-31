@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(geminiApiKey.trim());
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const prompt = `${SYSTEM_PROMPT}\n\nKullanıcı sorusu: ${lastUserMsg}`;
 
