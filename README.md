@@ -8,7 +8,7 @@ CampusBite, kampüs içi işletmelerin gün sonu fazla ürünlerini (surplus foo
 
 ## ## Canlı Demo
 **Yayın Linki:** [https://campus-bite-ashy.vercel.app/]
-**Demo Videosu:** [Buraya video linkini ekleyebilirsin]
+**Demo Videosu:** [https://www.loom.com/share/c9cafa75975e43b1a4df1cf4f0231fc8]
 
 ## ## Kullanılan Teknolojiler
 - **Framework:** Next.js 14 (App Router)
